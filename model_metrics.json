@@ -1,0 +1,19 @@
+{
+  "model_name": "Random Forest Regressor",
+  "r2": 0.9351,
+  "mae": 8503.5,
+  "rmse": 14178.5,
+  "train_records": 120,
+  "num_features": 9,
+  "feature_names": [
+    "Age",
+    "Employment_Type",
+    "Annual_Income_INR",
+    "Other_Income_INR",
+    "Deductions_INR",
+    "Investments_INR",
+    "Home_Loan_Interest_INR",
+    "Health_Insurance_INR",
+    "Previous_Tax_Paid_INR"
+  ]
+}
