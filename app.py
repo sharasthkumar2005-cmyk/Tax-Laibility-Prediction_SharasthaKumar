@@ -10,7 +10,7 @@ It:
   2. Presents a clean form for the user to enter their financial details
   3. Passes the inputs through the same pipeline used during training
   4. Displays the predicted tax liability
-  5. Provides a Gemini 2.5 Flash-powered AI Tax Assistant for Q&A
+  5. Provides a Groq Llama 3.3-powered AI Tax Assistant for Q&A
 
 IMPORTANT: Run train_model.py first to generate the model file.
 Then launch this app with:  streamlit run app.py
@@ -20,7 +20,11 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
-import google.generativeai as genai
+from groq import Groq
+from dotenv import load_dotenv
+
+# Load .env file so GROQ_API_KEY is available via os.environ
+load_dotenv()
 
 # ─────────────────────────────────────────────
 # Page Configuration
@@ -289,18 +293,29 @@ if predict_clicked:
             )
 
 # ─────────────────────────────────────────────
-# AI Tax Assistant (Gemini 2.5 Flash)
+# AI Tax Assistant (Groq — Llama 3.3)
 # ─────────────────────────────────────────────
 st.markdown("---")
 st.markdown("### 🤖 AI Tax Assistant")
 st.info(
     "Ask any tax-related question and get an instant answer powered by "
-    "**Gemini 2.5 Flash**. For example: *What is Section 80C?* or "
+    "**GPT-OSS 20B (Groq)**. For example: *What is Section 80C?* or "
     "*How is income tax calculated in India?*"
 )
 
-# Gemini API Key — embedded directly for academic/demo use
-GEMINI_API_KEY = "AIzaSy-REPLACE-WITH-YOUR-REAL-GEMINI-KEY"
+# Groq API Key
+# Load API key from environment variable (set in .env or system environment)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
+# System prompt — keeps the assistant focused on Indian tax topics
+SYSTEM_PROMPT = (
+    "You are a helpful Indian income tax assistant for an academic project. "
+    "Answer questions about Indian income tax, deductions, tax slabs, "
+    "investments, and related financial topics in simple, beginner-friendly language. "
+    "Keep answers concise (3-5 sentences). "
+    "Always remind the user that your answers are for educational purposes only "
+    "and not official tax advice."
+)
 
 # Initialise chat history in session state so it persists across reruns
 if "chat_history" not in st.session_state:
@@ -320,40 +335,36 @@ if user_question:
     with st.chat_message("user"):
         st.markdown(user_question)
 
-    # Build a tax-focused system prompt so Gemini stays on topic
-    system_prompt = (
-        "You are a helpful Indian income tax assistant for an academic project. "
-        "Answer questions about Indian income tax, deductions, tax slabs, "
-        "investments, and related financial topics in simple, beginner-friendly language. "
-        "Keep answers concise (3-5 sentences). "
-        "Always remind the user that your answers are for educational purposes only "
-        "and not official tax advice."
-    )
-
-    # Call Gemini 2.5 Flash
+    # Call Groq — Llama 3.3 70B
     with st.chat_message("assistant"):
-        with st.spinner("Gemini is thinking..."):
+        with st.spinner("Thinking..."):
             try:
-                genai.configure(api_key=GEMINI_API_KEY)
-                gemini_model = genai.GenerativeModel(
-                    model_name="gemini-2.5-flash",
-                    system_instruction=system_prompt,
+                client = Groq(api_key=GROQ_API_KEY)
+                # Build messages list: system prompt + full conversation history
+                messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+                for msg in st.session_state.chat_history:
+                    messages.append({"role": msg["role"], "content": msg["content"]})
+
+                completion = client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=messages,
+                    temperature=0.5,
+                    max_tokens=512,
                 )
-                response = gemini_model.generate_content(user_question)
-                answer = response.text
+                answer = completion.choices[0].message.content
+
             except Exception as e:
                 err_msg = str(e)
-                if "API_KEY" in err_msg.upper() or "invalid" in err_msg.lower() or "api key" in err_msg.lower():
+                if "auth" in err_msg.lower() or "api_key" in err_msg.lower() or "401" in err_msg:
                     answer = (
-                        "❌ **Invalid or missing Gemini API key.** "
-                        "Please replace `GEMINI_API_KEY` in `app.py` with your valid "
-                        "Google AI Studio key (starts with `AIzaSy...`). "
-                        "Get one free at https://aistudio.google.com/app/apikey"
+                        "❌ **Invalid Groq API key.** "
+                        "Please update `GROQ_API_KEY` in `app.py`. "
+                        "Get a free key at https://console.groq.com"
                     )
                 else:
                     answer = (
-                        f"❌ Could not reach Gemini right now. Please try again. "
-                        f"(Error: {err_msg})"
+                        f"❌ Could not reach the AI assistant right now. "
+                        f"Please try again. (Error: {err_msg})"
                     )
 
         st.markdown(answer)

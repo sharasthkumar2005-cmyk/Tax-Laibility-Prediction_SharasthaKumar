@@ -17,3 +17,6 @@ Thumbs.db
 
 # Original binary XLS source (dataset already converted to CSV in data/)
 tax_liability_prediction_dataset.csv.xls
+
+# Environment variables (contains API keys — never commit this)
+.env
