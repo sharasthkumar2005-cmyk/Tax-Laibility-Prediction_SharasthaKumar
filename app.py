@@ -19,7 +19,6 @@ Then launch this app with:  streamlit run app.py
 import streamlit as st
 import pandas as pd
 import joblib
-import json
 import os
 import google.generativeai as genai
 
@@ -36,7 +35,6 @@ st.set_page_config(
 # Helper: Load Model & Metrics
 # ─────────────────────────────────────────────
 MODEL_PATH   = "tax_liability_model.pkl"
-METRICS_PATH = "model_metrics.json"
 
 
 @st.cache_resource
@@ -51,13 +49,6 @@ def load_model():
     return joblib.load(MODEL_PATH)
 
 
-def load_metrics():
-    """Load the saved model evaluation metrics."""
-    if not os.path.exists(METRICS_PATH):
-        return None
-    with open(METRICS_PATH, "r") as f:
-        return json.load(f)
-
 
 def format_inr(amount: float) -> str:
     """Format a number as Indian Rupee currency string."""
@@ -67,8 +58,7 @@ def format_inr(amount: float) -> str:
 # ─────────────────────────────────────────────
 # Load Resources
 # ─────────────────────────────────────────────
-model   = load_model()
-metrics = load_metrics()
+model = load_model()
 
 # ─────────────────────────────────────────────
 # App Header
@@ -297,35 +287,6 @@ if predict_clicked:
                 "❌ An error occurred while generating the prediction. "
                 "Please check your inputs and try again."
             )
-
-# ─────────────────────────────────────────────
-# About the Model Section
-# ─────────────────────────────────────────────
-st.markdown("---")
-st.markdown("### 🤖 About the Model")
-
-if metrics:
-    # Display full model name as a labelled text row (no truncation)
-    st.markdown(
-        f"🧠 **Model Used:** `{metrics.get('model_name', '—')}`"
-    )
-
-    m_col1, m_col2, m_col3 = st.columns(3)
-    with m_col1:
-        st.metric("R² Score", f"{metrics.get('r2', 0):.4f}")
-    with m_col2:
-        st.metric("MAE", format_inr(metrics.get("mae", 0)))
-    with m_col3:
-        st.metric("Training Records", metrics.get("train_records", "—"))
-
-    st.markdown(
-        f"**Input Features ({metrics.get('num_features', 9)}):** "
-        + ", ".join(
-            f"`{f}`" for f in metrics.get("feature_names", [])
-        )
-    )
-else:
-    st.warning("Model metrics not available. Please run `train_model.py` first.")
 
 # ─────────────────────────────────────────────
 # AI Tax Assistant (Gemini 2.5 Flash)
