@@ -10,6 +10,7 @@ It:
   2. Presents a clean form for the user to enter their financial details
   3. Passes the inputs through the same pipeline used during training
   4. Displays the predicted tax liability
+  5. Provides a Gemini 2.5 Flash-powered AI Tax Assistant for Q&A
 
 IMPORTANT: Run train_model.py first to generate the model file.
 Then launch this app with:  streamlit run app.py
@@ -20,6 +21,7 @@ import pandas as pd
 import joblib
 import json
 import os
+import google.generativeai as genai
 
 # ─────────────────────────────────────────────
 # Page Configuration
@@ -303,14 +305,17 @@ st.markdown("---")
 st.markdown("### 🤖 About the Model")
 
 if metrics:
-    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+    # Display full model name as a labelled text row (no truncation)
+    st.markdown(
+        f"🧠 **Model Used:** `{metrics.get('model_name', '—')}`"
+    )
+
+    m_col1, m_col2, m_col3 = st.columns(3)
     with m_col1:
-        st.metric("Model Used", metrics.get("model_name", "—").replace(" Regressor", ""))
-    with m_col2:
         st.metric("R² Score", f"{metrics.get('r2', 0):.4f}")
-    with m_col3:
+    with m_col2:
         st.metric("MAE", format_inr(metrics.get("mae", 0)))
-    with m_col4:
+    with m_col3:
         st.metric("Training Records", metrics.get("train_records", "—"))
 
     st.markdown(
@@ -321,6 +326,77 @@ if metrics:
     )
 else:
     st.warning("Model metrics not available. Please run `train_model.py` first.")
+
+# ─────────────────────────────────────────────
+# AI Tax Assistant (Gemini 2.5 Flash)
+# ─────────────────────────────────────────────
+st.markdown("---")
+st.markdown("### 🤖 AI Tax Assistant")
+st.info(
+    "Ask any tax-related question and get an instant answer powered by "
+    "**Gemini 2.5 Flash**. For example: *What is Section 80C?* or "
+    "*How is income tax calculated in India?*"
+)
+
+# Gemini API Key — embedded directly for academic/demo use
+GEMINI_API_KEY = "AIzaSy-REPLACE-WITH-YOUR-REAL-GEMINI-KEY"
+
+# Initialise chat history in session state so it persists across reruns
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# Display previous messages
+for msg in st.session_state.chat_history:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# Chat input box
+user_question = st.chat_input("Ask a tax question...")
+
+if user_question:
+    # Show user message immediately
+    st.session_state.chat_history.append({"role": "user", "content": user_question})
+    with st.chat_message("user"):
+        st.markdown(user_question)
+
+    # Build a tax-focused system prompt so Gemini stays on topic
+    system_prompt = (
+        "You are a helpful Indian income tax assistant for an academic project. "
+        "Answer questions about Indian income tax, deductions, tax slabs, "
+        "investments, and related financial topics in simple, beginner-friendly language. "
+        "Keep answers concise (3-5 sentences). "
+        "Always remind the user that your answers are for educational purposes only "
+        "and not official tax advice."
+    )
+
+    # Call Gemini 2.5 Flash
+    with st.chat_message("assistant"):
+        with st.spinner("Gemini is thinking..."):
+            try:
+                genai.configure(api_key=GEMINI_API_KEY)
+                gemini_model = genai.GenerativeModel(
+                    model_name="gemini-2.5-flash",
+                    system_instruction=system_prompt,
+                )
+                response = gemini_model.generate_content(user_question)
+                answer = response.text
+            except Exception as e:
+                err_msg = str(e)
+                if "API_KEY" in err_msg.upper() or "invalid" in err_msg.lower() or "api key" in err_msg.lower():
+                    answer = (
+                        "❌ **Invalid or missing Gemini API key.** "
+                        "Please replace `GEMINI_API_KEY` in `app.py` with your valid "
+                        "Google AI Studio key (starts with `AIzaSy...`). "
+                        "Get one free at https://aistudio.google.com/app/apikey"
+                    )
+                else:
+                    answer = (
+                        f"❌ Could not reach Gemini right now. Please try again. "
+                        f"(Error: {err_msg})"
+                    )
+
+        st.markdown(answer)
+        st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
 # ─────────────────────────────────────────────
 # Disclaimer
